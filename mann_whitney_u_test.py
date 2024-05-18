@@ -1,7 +1,6 @@
 import argparse
 import pandas as pd
-from excel_preprocess_utilities import excel_column_to_index
-# import numpy as np
+from excel_preprocess_utilities import excel_column_to_index, generate_excel_column_range
 from scipy.stats import mannwhitneyu
 
 
@@ -11,12 +10,21 @@ def main():
     # for arg, value in vars(args).items():
     #     print(f"{arg}: {value}")
     df = pd.read_excel(args.excel_file_path, sheet_name=args.sheet_name)
+    column_range = args.column_indexes
+    if args.column_range is not None:
+        start_column, end_column = args.column_range.split("-")
+        # print(start_column)
+        # print(end_column)
+        column_range = generate_excel_column_range(start_column, end_column)
+
     # print(df)
     # run Mann-Whitney U test in a loop
-    for col in args.column_indexes:
+    test_results = []
+    for col in column_range:
         # print(excel_column_to_index(col))
         col_index = excel_column_to_index(col)
-        print(f"\nTest column: {df.columns[col_index]}")
+        col_name = df.columns[col_index]
+        print(f"\nTest column: {col_name}")
         group_a = get_column_values_by_group(df, args.A_group_name, col_index)
         group_b = get_column_values_by_group(df, args.B_group_name, col_index)
         # print(group_a)
@@ -31,7 +39,17 @@ def main():
         else:
             print("There is no significant difference between the two groups")
 
-        # export the result as a spread sheet
+        # export the result as a spreadsheet
+        test_results.append({
+            'Column name': col_name,
+            'U Statistic': u_statistic,
+            'p value': p_value,
+            'Significant (p < 0.05)': p_value < 0.05
+        })
+    results_df = pd.DataFrame(test_results)
+    # print(results_df)
+    output_file = f'./output/mann_whitney_u_test_results_between_{args.A_group_name}_and_{args.B_group_name}.xlsx'
+    results_df.to_excel(output_file, index=False)
 
 
 def parse_args():
@@ -44,6 +62,8 @@ def parse_args():
     parser.add_argument("--sheet_name", default=0, help="Name of the sheet for test")
     parser.add_argument("--column_indexes", nargs="+", default=['A'],
                         help="The column indexes containing data for test, space separated")
+    parser.add_argument("--column_range",
+                        help="The column index range containing data for test, e.g. A-AA")
     args = parser.parse_args()
     return args
 
